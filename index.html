@@ -4,14 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Friendly Poker</title>
-<meta name="description" content="Домашний покер: стол, ставки, банк и итоги вечеров">
-<style>html,body{margin:0;background:#5a0710;color-scheme:dark}</style>
 </head>
 <body>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
+:root { color-scheme: dark; --page: #5a0710; }
+body { background: var(--page); color: #f7eedb; margin: 0; }
 #fp-app, #fp-app * { box-sizing: border-box; }
 #fp-app {
   --red-900:#3a050b; --red-800:#5a0710; --red-700:#7a0d18; --red-600:#9a1724;
@@ -241,12 +240,30 @@ details.fp-det[open] > summary::after { content:" ▴"; }
 .fp-day-meta { font-size:13px; color:#e2cda5; }
 .fp-live { display:inline-block; margin-left:8px; font-family:'Manrope',sans-serif; font-size:11px; font-weight:800; color:#2a0a0e; background:#9be3b0; padding:2px 8px; border-radius:999px; vertical-align:4px; }
 .fp-night-sub { font-weight:700; color:#f1dfba; font-size:14px; margin:10px 0 4px; }
+[hidden] { display: none !important; }
+.fp-auth { position: relative; z-index: 3; display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:10px; padding-top: 16px; font-size: 13px; color:#f1dfba; }
+.fp-login { flex-basis: 100%; display:grid; grid-template-columns: auto minmax(0,220px); gap: 8px 10px; justify-content:end; align-items:center; background: rgba(20,4,7,.8); border:1px solid rgba(217,180,106,.55); border-radius: 14px; padding: 14px; }
+.fp-login .fp-btn, .fp-login .fp-msg { grid-column: 2; margin: 0; }
+.fp-ro .fp-in, .fp-ro .fp-chk, .fp-ro [data-dealer], .fp-ro [data-rebuy], .fp-ro [data-del], .fp-ro [data-delday], .fp-ro #fp-finish, .fp-ro #fp-clear, .fp-ro #fp-undo, .fp-ro #fp-add, .fp-ro #fp-new-night, .fp-ro #fp-new-night2, .fp-ro .fp-settings { pointer-events: none; }
+.fp-ro .fp-actions, .fp-ro #fp-add, .fp-ro [data-rebuy], .fp-ro [data-del], .fp-ro [data-delday], .fp-ro #fp-new-night2 { display: none; }
+.fp-ro .fp-login .fp-in { pointer-events: auto; }
 </style>
 
 <div id="fp-app">
   <div class="fp-deco" id="fp-deco" aria-hidden="true"></div>
 
   <div class="fp-wrap">
+    <div class="fp-auth" id="fp-auth" hidden>
+      <span id="fp-auth-state">Режим просмотра</span>
+      <button class="fp-btn small" id="fp-login-open" type="button">Войти, чтобы вести счёт</button>
+      <button class="fp-btn small" id="fp-logout" type="button" hidden>Выйти</button>
+      <form class="fp-login" id="fp-login-form" hidden>
+        <label for="fp-email">Почта</label><input class="fp-in wide" id="fp-email" type="email" autocomplete="username" required>
+        <label for="fp-pass">Пароль</label><input class="fp-in wide" id="fp-pass" type="password" autocomplete="current-password" required>
+        <button class="fp-btn small primary" type="submit">Войти</button>
+        <span class="fp-msg err" id="fp-login-err" role="status"></span>
+      </form>
+    </div>
 
     <!-- ===== БИЛБОРД ===== -->
     <header class="fp-hero">
@@ -410,7 +427,7 @@ details.fp-det[open] > summary::after { content:" ▴"; }
           <div class="fp-row" style="margin-top:18px">
             <button class="fp-btn small" id="fp-new-night">Начать новый вечер (итоги останутся в архиве)</button>
           </div>
-          <p style="font-size:13px;color:#e2cda5;margin:12px 0 0">Данные и архив хранятся в этом браузере: если обновить страницу, ничего не пропадёт. На другом телефоне или компьютере таблица будет пустой.</p>
+          <p style="font-size:13px;color:#e2cda5;margin:12px 0 0"><span id="fp-cloud">Подключаю сохранение…</span></p>
         </details>
       </div>
     </section>
@@ -419,6 +436,22 @@ details.fp-det[open] > summary::after { content:" ▴"; }
   </div>
 </div>
 
+<!-- Firebase: облачная база для счёта и архива -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  /* ВСТАВЬТЕ СЮДА firebaseConfig из консоли Firebase (между фигурными скобками) */
+  window.FP_FIREBASE = {
+    apiKey: "AIzaSyDaglb8iwgnZkpEF06rwavKnoq7uAD3XVE",
+    authDomain: "friendly-poker-6494c.firebaseapp.com",
+    databaseURL: "https://friendly-poker-6494c-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "friendly-poker-6494c",
+    storageBucket: "friendly-poker-6494c.firebasestorage.app",
+    messagingSenderId: "553372917167",
+    appId: "1:553372917167:web:c370f060459e602cfd235a"
+  };
+</script>
 <script>
 (function () {
   var KEY = 'friendlyPoker.v1';
@@ -458,7 +491,27 @@ details.fp-det[open] > summary::after { content:" ▴"; }
   var AKEY = 'friendlyPoker.archive.v1', A;
   try { A = JSON.parse(localStorage.getItem(AKEY)) || []; } catch (e) { A = []; }
   function saveA() { try { localStorage.setItem(AKEY, JSON.stringify(A)); } catch (e) {} }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function putNight(entry) {
+    if (!DB) return;
+    clearTimeout(nightT);
+    nightT = setTimeout(function () { DB.doc('nights/' + entry.id).set({ e: JSON.stringify(entry) }).catch(function () { cloud(false); }); }, 700);
+  }
+  function dropNight(id) { if (DB) DB.doc('nights/' + id).delete().catch(function () {}); }
+  var DB = null, dbT = null, nightT = null;
+  function stripState() { var c = JSON.parse(JSON.stringify(S)); delete c.undo; return c; }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+    if (!DB) return;
+    clearTimeout(dbT);
+    dbT = setTimeout(function () {
+      DB.doc('game/current').set({ s: JSON.stringify(stripState()) }).then(function () { cloud(true); }, function () { cloud(false); });
+    }, 600);
+  }
+  function cloud(ok) {
+    var el = document.getElementById('fp-cloud'); if (!el) return;
+    el.textContent = ok ? '☁ Подключено к облаку: счёт и архив видны с любого устройства по этой ссылке.' : 'Облако сейчас недоступно — проверьте интернет и обновите страницу.';
+    el.className = ok ? 'fp-ok' : 'fp-bad';
+  }
 
   /* ---------- вычисления ---------- */
   function fmt(n) { n = Math.round(n || 0); return (n < 0 ? '−' : '') + Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
@@ -777,8 +830,8 @@ details.fp-det[open] > summary::after { content:" ▴"; }
   function syncArchive() {
     if (S.archiveOff) { renderArchive(); return; }
     var i = A.findIndex(function (n) { return n.id === S.nightId; });
-    if (!S.history.length) { if (i >= 0) A.splice(i, 1); }
-    else if (i >= 0) A[i] = nightEntry(); else A.push(nightEntry());
+    if (!S.history.length) { if (i >= 0) { A.splice(i, 1); dropNight(S.nightId); } }
+    else { var en = nightEntry(); if (i >= 0) A[i] = en; else A.push(en); putNight(en); }
     saveA(); renderArchive();
   }
   function prettyDate(iso) {
@@ -878,6 +931,7 @@ details.fp-det[open] > summary::after { content:" ▴"; }
     } else if (t.dataset.delday) {
       if (!armed(t, 'Точно удалить? Нажмите ещё раз')) return;
       var day = t.dataset.delday;
+      A.forEach(function (n) { if (n.date === day) dropNight(n.id); });
       A = A.filter(function (n) { return n.date !== day; });
       if (S.nightDate === day && S.history.length) S.archiveOff = true;
       saveA(); renderArchive();
@@ -949,7 +1003,7 @@ details.fp-det[open] > summary::after { content:" ▴"; }
     S.dealerId = S.players[0].id; renderAll(); msg('Новый вечер начат, прошлый сохранён в архиве. Удачи за столом!');
   }
   $('fp-new-night').addEventListener('click', function () { if (armed(this)) newNight(); });
-  $('fp-new-night2').addEventListener('click', function () { if (armed(this, 'Точно? Нажмите ещё раз — итоги уйдут в архив')) { newNight(); location.hash = 'fp-game'; } });
+  $('fp-new-night2').addEventListener('click', function () { if (armed(this, 'Точно? Нажмите ещё раз — итоги уйдут в архив')) { newNight();  } });
 
   /* лампочки по периметру вывески */
   function bulbs() {
@@ -968,6 +1022,56 @@ details.fp-det[open] > summary::after { content:" ▴"; }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(bulbs);
 
   deco(); combos(); renderAll(); bulbs();
+
+  /* ---------- облачная база Firebase ---------- */
+  var CFG = window.FP_FIREBASE || {};
+  function setMode(editor) {
+    app.classList.toggle('fp-ro', !editor);
+    var who = $('fp-auth-state'), inB = $('fp-login-open'), outB = $('fp-logout');
+    if (who) who.textContent = editor ? 'Вы ведёте счёт' : 'Режим просмотра';
+    if (inB) inB.hidden = editor; if (outB) outB.hidden = !editor;
+    if (editor) $('fp-login-form').hidden = true;
+  }
+  if (window.firebase && CFG.apiKey) {
+    $('fp-auth').hidden = false;
+    firebase.initializeApp(CFG);
+    var rdb = firebase.database(), auth = firebase.auth();
+    // обёртка, чтобы остальной код писал в базу одинаково
+    var fdb = { doc: function (path) { var ref = rdb.ref(path); return {
+      set: function (v) { return ref.set(v); }, delete: function () { return ref.remove(); } }; } };
+    function nightsFrom(val) { var r = []; Object.keys(val || {}).forEach(function (k) { try { r.push(JSON.parse(val[k].e)); } catch (e) {} }); return r; }
+    setMode(false);
+    // все видят живой счёт
+    rdb.ref('game/current').on('value', function (snap) {
+      if (DB) return; // ведущая работает со своей копией, чтобы не сбивать ввод
+      var v = snap.val(); if (!v || !v.s) return;
+      try { var L = JSON.parse(v.s); L.undo = []; S = L; renderAll(); } catch (e) {}
+      cloud(true);
+    }, function () { cloud(false); });
+    rdb.ref('nights').on('value', function (snap) { A = nightsFrom(snap.val()); saveA(); renderArchive(); }, function () {});
+    auth.onAuthStateChanged(function (u) {
+      if (!u) { DB = null; setMode(false); return; }
+      Promise.all([rdb.ref('game/current').once('value'), rdb.ref('nights').once('value')]).then(function (r) {
+        var cur = r[0].val(), remote = nightsFrom(r[1].val());
+        if (cur && cur.s) { try { var L = JSON.parse(cur.s); L.undo = (L.nightId === S.nightId) ? (S.undo || []) : []; S = L; } catch (e) {} }
+        DB = fdb; setMode(true);
+        if (remote.length) { A = remote; saveA(); } else A.forEach(function (e) { fdb.doc('nights/' + e.id).set({ e: JSON.stringify(e) }); });
+        renderAll(); cloud(true);
+        if (!cur) save();
+      }, function () { cloud(false); });
+    });
+    $('fp-login-open').addEventListener('click', function () { var f = $('fp-login-form'); f.hidden = !f.hidden; if (!f.hidden) $('fp-email').focus(); });
+    $('fp-logout').addEventListener('click', function () { auth.signOut(); });
+    $('fp-login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var err = $('fp-login-err'); err.textContent = 'Вхожу…';
+      auth.signInWithEmailAndPassword($('fp-email').value.trim(), $('fp-pass').value).then(function () { err.textContent = ''; }, function () {
+        err.textContent = 'Не получилось войти: проверьте почту и пароль.';
+      });
+    });
+  } else {
+    var c = $('fp-cloud'); if (c) { c.textContent = 'Облако не подключено: игра сохраняется только в этом браузере.'; c.className = 'fp-bad'; }
+  }
 })();
 </script>
 
