@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friendly Poker</title>
+<meta name="description" content="Домашний покер: стол, ставки, банк и итоги вечеров">
+<style>html,body{margin:0;background:#5a0710;color-scheme:dark}</style>
+</head>
+<body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+#fp-app, #fp-app * { box-sizing: border-box; }
+#fp-app {
+  --red-900:#3a050b; --red-800:#5a0710; --red-700:#7a0d18; --red-600:#9a1724;
+  --gold:#d9b46a; --gold-hi:#f4dc9c; --gold-lo:#9c7a35;
+  --cream:#f7eedb; --ink:#140c0c; --felt:#1d6b40; --felt-hi:#2f9a5d;
+  --s-spade:#111111; --s-heart:#c8102e; --s-diamond:#1f56b8; --s-club:#1e7a3c;
+  position: relative; overflow: hidden; width: 100%;
+  font-family: 'Manrope', system-ui, sans-serif; color: var(--cream); line-height: 1.5;
+  background-color: var(--red-800);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E"),
+    radial-gradient(120% 60% at 50% 0%, rgba(255,90,100,.28), transparent 60%),
+    radial-gradient(90% 70% at 50% 110%, rgba(0,0,0,.55), transparent 70%),
+    repeating-linear-gradient(90deg, #4c0610 0px, #7d0f1b 70px, #5e0812 140px, #8f1522 215px, #520710 290px);
+}
+#fp-app button { font-family: inherit; cursor: pointer; }
+#fp-app input { font-family: inherit; }
+
+/* ---------- декор ---------- */
+.fp-deco { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.fp-gem { position: absolute; border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 30%, #fff 0 10%, rgba(255,255,255,0) 22%),
+    conic-gradient(from 10deg, #ffffff, #8d969f, #f4f6f8, #5f666e, #ffffff, #aeb6be, #ffffff, #737b84, #e9edf0, #ffffff);
+  box-shadow: 0 0 0 1.5px #e3e7eb, 0 0 0 3px rgba(120,128,136,.6), 0 3px 6px rgba(0,0,0,.55), 0 0 14px rgba(255,255,255,.35);
+}
+.fp-gem::after { content:""; position:absolute; left:50%; top:50%; width:260%; height:260%; transform:translate(-50%,-50%);
+  background: radial-gradient(circle, rgba(255,255,255,.9) 0 3%, transparent 9%),
+              linear-gradient(90deg, transparent 47%, rgba(255,255,255,.8) 50%, transparent 53%),
+              linear-gradient(0deg, transparent 47%, rgba(255,255,255,.8) 50%, transparent 53%);
+  -webkit-mask: radial-gradient(circle, #000 0 30%, transparent 55%); mask: radial-gradient(circle, #000 0 30%, transparent 55%);
+  opacity:0; animation: fp-twinkle 5s infinite; animation-delay: var(--d, 0s); }
+@keyframes fp-twinkle { 0%,82%,100%{opacity:0} 88%{opacity:1} }
+@media (prefers-reduced-motion: reduce){ .fp-gem::after{ animation:none; } }
+
+.fp-dcard { position: absolute; width: 74px; height: 104px; border-radius: 8px; border: 2px solid var(--gold);
+  display:flex; flex-direction:column; justify-content:space-between; padding:6px 7px;
+  font-family:'Playfair Display',serif; font-weight:800; box-shadow: 0 10px 24px rgba(0,0,0,.5); opacity:.9; }
+.fp-dcard b { font-size: 20px; line-height: 1; }
+.fp-dcard i { font-style: normal; font-size: 34px; align-self:center; line-height:1; }
+.fp-dcard s { text-decoration:none; font-size: 20px; line-height:1; align-self:flex-end; transform: rotate(180deg); }
+.fp-dcard.black { background: linear-gradient(160deg,#1d1414,#0b0707); color: var(--gold); }
+.fp-dcard.red   { background: linear-gradient(160deg,#b0182a,#6d0a15); color: var(--gold-hi); }
+.fp-dcard.gold  { background: linear-gradient(160deg,#f2d993,#b8903f); color: #2a0a0e; border-color:#fff3cc; }
+
+.fp-dchip { position:absolute; border-radius:50%; box-shadow: 0 8px 18px rgba(0,0,0,.55); opacity:.92;
+  background:
+    radial-gradient(circle, var(--c) 0 46%, var(--r) 47% 50%, var(--c) 51% 63%, transparent 64%),
+    repeating-conic-gradient(var(--c) 0 20deg, var(--r) 20deg 40deg);
+  border: 3px solid var(--c); }
+
+/* ---------- общая раскладка ---------- */
+.fp-wrap { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 0 20px 70px; }
+.fp-h2 { font-family:'Playfair Display',serif; font-weight:700; font-size: clamp(26px,3.2vw,36px); color: var(--gold-hi); margin: 0 0 6px; letter-spacing:.01em; }
+.fp-sub { color:#e9d6b3; margin:0 0 18px; font-size:15px; }
+.fp-panel { background: rgba(20,4,7,.62); border: 1px solid rgba(217,180,106,.55); border-radius: 18px; padding: 22px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.fp-section { margin-top: 34px; }
+.fp-btn { border: 1px solid var(--gold); background: transparent; color: var(--gold-hi); padding: 11px 18px; border-radius: 999px; font-weight:700; font-size:14px; min-height:44px; transition: background .2s, color .2s; }
+.fp-btn:hover { background: rgba(217,180,106,.15); }
+.fp-btn.primary { background: linear-gradient(180deg,var(--gold-hi),var(--gold) 60%,var(--gold-lo)); color:#2a0a0e; border-color: var(--gold-hi); }
+.fp-btn.primary:hover { filter: brightness(1.06); }
+.fp-btn.small { padding: 6px 12px; min-height: 34px; font-size: 13px; }
+.fp-btn:disabled { opacity:.4; cursor:not-allowed; }
+.fp-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+
+/* ---------- билборд ---------- */
+.fp-hero { text-align:center; padding: 80px 0 50px; }
+/* ===== вывеска казино ===== */
+.fp-sign { position: relative; display: inline-block; max-width: 100%; padding: 26px; border-radius: 34px;
+  background: linear-gradient(145deg, #fff3cc 0%, #d8b25e 18%, #7d5518 42%, #f0d385 58%, #a2742a 78%, #f7e2a6 100%);
+  box-shadow: 0 40px 80px rgba(0,0,0,.65), 0 0 90px rgba(255,180,80,.28), inset 0 2px 2px rgba(255,255,255,.75), inset 0 -4px 6px rgba(60,30,0,.55);
+  animation: fp-sign-in 1.6s ease-out both; }
+.fp-sign::before { content:""; position:absolute; inset: 9px; border-radius: 27px; pointer-events:none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), inset 0 0 0 2px rgba(90,55,10,.6); }
+.fp-sign-in { position: relative; border-radius: 20px; padding: 26px clamp(18px, 5vw, 70px) 30px;
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(255,170,90,.18), transparent 60%),
+    radial-gradient(120% 120% at 50% 10%, #3c0a13 0%, #17050a 55%, #090205 100%);
+  box-shadow: inset 0 0 0 2px #2b1806, inset 0 0 0 4px rgba(244,220,156,.55), inset 0 0 0 6px #1a0a04, inset 0 14px 40px rgba(0,0,0,.85); }
+.fp-bulbs { position: absolute; inset: 0; pointer-events: none; }
+.fp-bulb { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #ffffff 0 18%, #fff3c4 32%, #ffc650 62%, #b8721a 100%);
+  box-shadow: 0 0 0 1.5px #6b4510, 0 0 6px 2px rgba(255,205,100,.95), 0 0 18px 5px rgba(255,165,50,.5);
+  animation: fp-chase 1.5s steps(1, end) infinite; }
+.fp-bulb.b1 { animation-delay: -.5s; } .fp-bulb.b2 { animation-delay: -1s; }
+@keyframes fp-chase {
+  0% { filter: none; }
+  33.33% { filter: brightness(.42) saturate(.7); box-shadow: 0 0 0 1.5px #6b4510, 0 0 3px 1px rgba(255,180,80,.35); }
+  100% { filter: brightness(.42) saturate(.7); box-shadow: 0 0 0 1.5px #6b4510, 0 0 3px 1px rgba(255,180,80,.35); } }
+.fp-suits { display:flex; justify-content:center; align-items:center; gap:12px; margin-bottom: 6px; }
+.fp-suits span { width:34px; height:34px; border-radius:50%; background: radial-gradient(circle at 40% 35%, #fffaf0, #efe2c4); display:flex; align-items:center; justify-content:center; font-size:19px;
+  box-shadow: 0 0 0 2px #c9a04a, 0 0 0 4px #3a220a, 0 0 14px rgba(255,200,110,.45); }
+.fp-suits i { width: 46px; height: 1.5px; background: linear-gradient(90deg, transparent, #e7c77a, transparent); }
+.fp-title { position: relative; display: grid; margin: 0 0 -.06em; padding: 0 .04em; font-family:'Playfair Display',serif; font-weight:800;
+  font-size: clamp(42px, 9vw, 120px); line-height: 1.14; letter-spacing: .005em; white-space: nowrap; }
+.fp-title > span { grid-area: 1 / 1; padding: 0 .04em .12em; }
+.fp-t3d { color: #6e4813;
+  text-shadow: 0 1px 0 #7a5116, 0 2px 0 #6b4612, 0 3px 0 #5e3c0f, 0 4px 0 #51330c, 0 5px 0 #452a0a, 0 6px 0 #3a2308, 0 7px 0 #2f1c06,
+    0 12px 18px rgba(0,0,0,.75), 0 0 50px rgba(255,150,40,.35); }
+.fp-tgold { color: transparent;
+  background: linear-gradient(180deg, #fffdf0 0%, #fff0b8 22%, #f2cf7a 42%, #b98328 54%, #8a5c16 58%, #e3b85e 70%, #fff0bd 88%, #d9a645 100%);
+  -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 0 1px rgba(255,248,220,.95)) drop-shadow(0 0 10px rgba(255,205,110,.6)) drop-shadow(0 0 34px rgba(255,160,50,.45));
+  animation: fp-turn-on 2.4s ease-out both, fp-glow 4s ease-in-out 2.4s infinite; }
+.fp-tshine { color: transparent; pointer-events: none;
+  background: linear-gradient(105deg, transparent 0 42%, rgba(255,255,255,.95) 49%, rgba(255,250,220,.6) 52%, transparent 58% 100%);
+  background-size: 260% 100%; background-position: 130% 0;
+  -webkit-background-clip: text; background-clip: text; animation: fp-shine 6s ease-in-out 2.5s infinite; }
+@keyframes fp-shine { 0% { background-position: 130% 0; } 35%, 100% { background-position: -30% 0; } }
+@keyframes fp-glow { 0%,100% { filter: drop-shadow(0 0 1px rgba(255,248,220,.95)) drop-shadow(0 0 10px rgba(255,205,110,.6)) drop-shadow(0 0 34px rgba(255,160,50,.45)); }
+  50% { filter: drop-shadow(0 0 1px rgba(255,248,220,1)) drop-shadow(0 0 14px rgba(255,215,130,.8)) drop-shadow(0 0 48px rgba(255,165,60,.6)); } }
+@keyframes fp-turn-on { 0% { opacity: .1; } 8% { opacity: 1; } 11% { opacity: .25; } 16% { opacity: 1; } 19% { opacity: .5; } 26%, 100% { opacity: 1; } }
+@keyframes fp-sign-in { from { transform: translateY(14px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+.fp-tag { font-family:'Playfair Display',serif; font-style: italic; font-size: clamp(17px,2.1vw,23px); color:#fbe9c4; margin: 2px 0 0; text-shadow: 0 0 12px rgba(255,190,100,.45); }
+.fp-hero-btns { margin-top: 30px; }
+@media (max-width: 560px) { .fp-sign { padding: 18px; border-radius: 24px; } .fp-sign::before { inset: 6px; border-radius: 19px; } .fp-sign-in { padding: 18px 12px 20px; border-radius: 14px; } .fp-bulb { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; } .fp-suits span { width: 28px; height: 28px; font-size: 15px; } }
+@media (prefers-reduced-motion: reduce) { .fp-bulb, .fp-tgold, .fp-tshine, .fp-sign { animation: none !important; } }
+.fp-rules { max-width: 980px; margin: 26px auto 0; text-align:left; display:none; }
+.fp-rules.open { display:block; }
+.fp-rules-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 16px; }
+.fp-rules h3 { font-family:'Playfair Display',serif; color: var(--gold-hi); font-size: 20px; margin: 0 0 8px; }
+.fp-rules p, .fp-rules li { font-size: 14.5px; color:#f3e6cc; }
+.fp-rules ul, .fp-rules ol { margin: 0; padding-left: 20px; }
+.fp-rules li { margin-bottom: 4px; }
+.fp-rules b { color: var(--gold-hi); }
+.fp-combo { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(217,180,106,.18); font-size:14px; }
+.fp-combo:last-child { border-bottom:0; }
+.fp-combo em { font-style:normal; color: var(--gold); font-weight:800; width:20px; text-align:right; }
+.fp-combo strong { flex:1; color: var(--cream); }
+.fp-mini { display:flex; gap:2px; }
+.fp-mini span { width:19px; height:25px; border-radius:3px; background: var(--cream); font-size:9px; font-weight:800; line-height:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.fp-mini span.dim { opacity:.4; }
+.S { color: var(--s-spade); } .H { color: var(--s-heart); } .D { color: var(--s-diamond); } .C { color: var(--s-club); }
+
+/* ---------- главный блок: стол + таблица ---------- */
+.fp-main { display:grid; grid-template-columns: minmax(0, 9fr) minmax(0, 14fr); gap: 22px; align-items: start; }
+@media (max-width: 980px){ .fp-main { grid-template-columns: minmax(0,1fr); } }
+
+.fp-table-box { position: relative; width: 100%; aspect-ratio: 1 / 0.95; }
+.fp-felt { position:absolute; left: 13%; right: 13%; top: 17%; bottom: 17%; border-radius: 50%;
+  background: radial-gradient(70% 70% at 50% 38%, var(--felt-hi), var(--felt) 70%, #134a2c);
+  border: 12px solid #2a0a0e; box-shadow: 0 0 0 3px var(--gold), 0 0 0 8px #1a0507, 0 25px 50px rgba(0,0,0,.6), inset 0 0 40px rgba(0,0,0,.45); }
+.fp-felt-center { position:absolute; inset: 0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap: 2px; }
+.fp-felt-center .lbl { font-size: 11px; letter-spacing:.14em; text-transform: uppercase; color:#cfe8d8; }
+.fp-felt-center .pot { font-family:'Playfair Display',serif; font-weight:800; font-size: clamp(22px,3vw,32px); color: var(--gold-hi); line-height:1.1; }
+.fp-felt-center .rub { font-size: 13px; color:#e5f3ea; }
+.fp-felt-center .stage { margin-top: 6px; font-size: 12px; font-weight:700; color:#fff; background: rgba(0,0,0,.28); padding: 3px 10px; border-radius: 999px; }
+
+.fp-seat { position:absolute; width: 112px; transform: translate(-50%,-50%); text-align:center; }
+.fp-seat-btn { width: 100%; border: 2px solid var(--gold); background: linear-gradient(180deg,#2b0a0f,#14050a); color: var(--cream);
+  border-radius: 14px; padding: 7px 6px 6px; box-shadow: 0 8px 18px rgba(0,0,0,.5); transition: transform .15s; }
+.fp-seat-btn:hover { transform: translateY(-2px); }
+.fp-seat.first .fp-seat-btn { border-color: var(--gold-hi); background: linear-gradient(180deg,#f3d58f,#b8903f); color:#2a0a0e; box-shadow: 0 0 0 3px rgba(244,220,156,.45), 0 8px 18px rgba(0,0,0,.5); }
+.fp-seat.folded .fp-seat-btn { opacity: .45; }
+.fp-seat .nm { display:block; font-weight:800; font-size: 13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fp-seat .st { display:block; font-family:'Playfair Display',serif; font-weight:700; font-size: 15px; color: var(--gold-hi); }
+.fp-seat.first .st { color:#5a0710; }
+.fp-seat .rb { display:block; font-size: 11px; opacity:.85; }
+.fp-seat .ord { position:absolute; top:-10px; right:-8px; width:24px; height:24px; border-radius:50%; background: var(--cream); color:#2a0a0e; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 2px var(--gold); }
+.fp-badges { position:absolute; top:-12px; left:-8px; display:flex; gap:3px; }
+.fp-badge { width:26px; height:26px; border-radius:50%; font-size:9.5px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+.fp-badge.d  { background:#fff; color:#111; border:2px solid #111; }
+.fp-badge.sb { background: var(--s-diamond); color:#fff; border:2px solid #fff; }
+.fp-badge.bb { background: var(--s-heart); color:#fff; border:2px solid #fff; }
+.fp-bet { position:absolute; transform: translate(-50%,-50%); display:flex; align-items:center; gap:5px; font-weight:800; font-size: 12.5px; color:#fff; background: rgba(0,0,0,.45); padding: 2px 8px 2px 3px; border-radius: 999px; white-space:nowrap; }
+.fp-bet i { width:16px; height:16px; border-radius:50%; background: repeating-conic-gradient(#c8102e 0 30deg,#f7eedb 30deg 60deg); border: 2px solid #c8102e; }
+.fp-table-help { font-size: 13px; color:#e9d6b3; margin: 8px 0 0; text-align:center; }
+.fp-order { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(0,0,0,.25); font-size: 14px; }
+.fp-order b { color: var(--gold-hi); }
+
+.fp-stages { display:flex; flex-wrap:wrap; gap:6px; margin-bottom: 14px; }
+.fp-stage { border:1px solid rgba(217,180,106,.6); background: transparent; color:#f1dfba; border-radius:999px; padding: 7px 14px; font-weight:700; font-size: 13px; min-height:38px; }
+.fp-stage.on { background: var(--gold); color:#2a0a0e; border-color: var(--gold-hi); }
+
+.fp-scroll { width:100%; overflow-x:auto; -webkit-overflow-scrolling: touch; }
+.fp-t { width:100%; border-collapse: separate; border-spacing:0; font-size: 14px; min-width: 600px; }
+.fp-t th { font-family: inherit; text-align:left; font-weight:700; color: var(--gold-hi); font-size: 12.5px; letter-spacing:.03em; padding: 8px 6px; border-bottom: 1.5px solid var(--gold); white-space: nowrap; }
+.fp-t td { color: var(--cream); font-family: inherit; font-size: 14px; padding: 6px; border-bottom: 1px solid rgba(217,180,106,.2); vertical-align: middle; }
+.fp-t .n { text-align:right; font-variant-numeric: tabular-nums; }
+.fp-t .c { text-align:center; }
+.fp-t tfoot td { font-weight:800; color: var(--gold-hi); border-bottom: 0; border-top: 1.5px solid var(--gold); padding-top: 9px; }
+.fp-t col.on, .fp-t td.on, .fp-t th.on { background: rgba(217,180,106,.12); }
+.fp-t tr.folded td { opacity:.45; }
+.fp-t tr.win td { background: rgba(217,180,106,.16); }
+.fp-in { width: 66px; padding: 7px 8px; border-radius: 8px; border: 1px solid rgba(217,180,106,.55); background: rgba(255,248,232,.95); color:#1a0a0a; font-weight:700; font-size: 14px; text-align:right; }
+.fp-in:focus { outline: 2px solid var(--gold-hi); outline-offset: 1px; }
+.fp-in.err { border-color:#ff6b6b; background:#ffe3e3; }
+.fp-in.wide { width: 100%; text-align:left; }
+.fp-chk { width: 22px; height: 22px; accent-color: var(--gold); cursor:pointer; }
+.fp-pname { font-weight:800; white-space:nowrap; }
+.fp-pos { display:inline-block; margin-left:5px; font-size:10px; font-weight:800; padding:1px 5px; border-radius:6px; vertical-align: 1px; }
+.fp-pos.d { background:#fff; color:#111; } .fp-pos.sb { background:var(--s-diamond); color:#fff; } .fp-pos.bb { background:var(--s-heart); color:#fff; }
+.fp-left { font-family:'Playfair Display',serif; font-weight:700; color: var(--gold-hi); }
+.fp-left.neg { color:#ff8a8a; }
+.fp-msg { min-height: 22px; font-size: 14px; margin: 10px 0 0; color: var(--gold-hi); }
+.fp-msg.err { color:#ffb1b1; }
+.fp-actions { margin-top: 14px; }
+
+/* ---------- игроки / итоги ---------- */
+.fp-two { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 22px; }
+@media (max-width: 980px){ .fp-two { grid-template-columns: minmax(0,1fr); } }
+.fp-leader td { background: linear-gradient(90deg, rgba(244,220,156,.25), rgba(244,220,156,.05)); }
+.fp-crown { color: var(--gold-hi); margin-right: 4px; }
+.fp-plus { color:#9be3b0; font-weight:800; } .fp-minus { color:#ffa3a3; font-weight:800; }
+.fp-kpis { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
+.fp-kpi { border:1px solid rgba(217,180,106,.45); border-radius: 14px; padding: 12px 14px; background: rgba(0,0,0,.22); }
+.fp-kpi span { display:block; font-size: 12px; color:#e2cda5; letter-spacing:.04em; }
+.fp-kpi strong { display:block; font-family:'Playfair Display',serif; font-size: 24px; color: var(--gold-hi); line-height:1.2; }
+.fp-kpi small { font-size: 12px; color:#e9d6b3; }
+.fp-ok { color:#9be3b0; } .fp-bad { color:#ffb1b1; }
+.fp-empty { color:#e2cda5; font-style: italic; padding: 10px 0; }
+.fp-settings { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 12px; }
+.fp-settings label { font-size: 13px; color:#e9d6b3; display:flex; flex-direction:column; gap:5px; }
+.fp-settings .fp-in { width: 100%; text-align:left; }
+.fp-foot { text-align:center; color:#e2cda5; font-size: 13px; margin-top: 40px; }
+details.fp-det > summary { cursor:pointer; list-style:none; font-family:'Playfair Display',serif; font-size: 22px; color: var(--gold-hi); font-weight:700; }
+details.fp-det > summary::-webkit-details-marker { display:none; }
+details.fp-det > summary::after { content:" ▾"; font-size: 16px; }
+details.fp-det[open] > summary::after { content:" ▴"; }
+@media (max-width: 560px){ .fp-panel{padding:14px;} .fp-seat{width:86px;} .fp-seat .nm{font-size:12px;} .fp-seat .st{font-size:13px;} .fp-seat .rb{font-size:10px;} .fp-felt{border-width:8px;} .fp-wrap{padding:0 12px 50px;} }
+@media (max-width: 760px){ .fp-dcard, .fp-dchip { opacity:.35; transform: scale(.7) !important; } }
+.fp-btn.armed { background:#c8102e !important; color:#fff !important; border-color:#ff9a9a !important; }
+.fp-day { border:1px solid rgba(217,180,106,.45); border-radius:16px; padding:16px 18px; background: rgba(0,0,0,.2); margin-top:16px; }
+.fp-day-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.fp-day-title { font-family:'Playfair Display',serif; font-weight:700; font-size:21px; color: var(--gold-hi); }
+.fp-day-meta { font-size:13px; color:#e2cda5; }
+.fp-live { display:inline-block; margin-left:8px; font-family:'Manrope',sans-serif; font-size:11px; font-weight:800; color:#2a0a0e; background:#9be3b0; padding:2px 8px; border-radius:999px; vertical-align:4px; }
+.fp-night-sub { font-weight:700; color:#f1dfba; font-size:14px; margin:10px 0 4px; }
+</style>
+
+<div id="fp-app">
+  <div class="fp-deco" id="fp-deco" aria-hidden="true"></div>
+
+  <div class="fp-wrap">
+
+    <!-- ===== БИЛБОРД ===== -->
+    <header class="fp-hero">
+      <div class="fp-sign" id="fp-sign">
+        <div class="fp-bulbs" id="fp-bulbs" aria-hidden="true"></div>
+        <div class="fp-sign-in">
+          <div class="fp-suits" aria-hidden="true"><i></i><span class="S">♠</span><span class="H">♥</span><span class="D">♦</span><span class="C">♣</span><i></i></div>
+          <h1 class="fp-title"><span class="fp-t3d" aria-hidden="true">Friendly Poker</span><span class="fp-tgold">Friendly Poker</span><span class="fp-tshine" aria-hidden="true">Friendly Poker</span></h1>
+          <p class="fp-tag">Техасский холдем для своих</p>
+        </div>
+      </div>
+      <div class="fp-row fp-hero-btns" style="justify-content:center">
+        <button class="fp-btn primary" id="fp-rules-btn" aria-expanded="false" aria-controls="fp-rules">Правила игры</button>
+        <a class="fp-btn" href="#fp-game" style="text-decoration:none;display:inline-flex;align-items:center">К столу ↓</a>
+      </div>
+
+      <div class="fp-rules fp-panel" id="fp-rules">
+        <div class="fp-rules-grid">
+          <div>
+            <h3>Цель игры</h3>
+            <p>Забрать фишки из банка: собрать лучшую комбинацию из 5 карт или заставить всех остальных сбросить карты.</p>
+            <h3 style="margin-top:14px">Ход раздачи</h3>
+            <ol>
+              <li><b>Блайнды:</b> двое слева от кнопки дилера ставят <b id="fp-r-sb">25</b> и <b id="fp-r-bb">50</b>.</li>
+              <li>Каждому по <b>2 закрытые карты</b>. Круг ставок — <b>префлоп</b>.</li>
+              <li><b>Флоп</b>: 3 общие карты. Круг ставок.</li>
+              <li><b>Тёрн</b>: 4-я карта. Круг ставок.</li>
+              <li><b>Ривер</b>: 5-я карта. Последний круг.</li>
+              <li><b>Вскрытие</b>: лучшие 5 из 7 карт забирают банк.</li>
+            </ol>
+            <h3 style="margin-top:14px">Кто ходит первым</h3>
+            <ul>
+              <li><b>Префлоп:</b> игрок сразу после большого блайнда.</li>
+              <li><b>Флоп, тёрн, ривер:</b> первый оставшийся слева от кнопки. Кнопка ходит последней.</li>
+              <li>Кнопка сдвигается по часовой стрелке после каждой раздачи.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Действия в свой ход</h3>
+            <p style="margin-bottom:6px"><b>Если в круге ещё никто не ставил:</b></p>
+            <ul>
+              <li><b>Чек</b> — пропустить ход, ничего не ставя.</li>
+              <li><b>Ставка (бет)</b> — поставить первым, минимум большой блайнд.</li>
+            </ul>
+            <p style="margin:8px 0 6px"><b>Если ставка уже есть:</b></p>
+            <ul>
+              <li><b>Колл</b> — уравнять ставку.</li>
+              <li><b>Рейз</b> — повысить. Минимум на размер прошлого повышения: 50 → 100, 200 → 400.</li>
+              <li><b>Фолд</b> — сбросить карты и выйти из раздачи.</li>
+              <li><b>Олл-ин</b> — поставить все фишки.</li>
+            </ul>
+            <h3 style="margin-top:14px">Наши деньги</h3>
+            <ul id="fp-r-money"></ul>
+          </div>
+          <div>
+            <h3>Комбинации (от старшей)</h3>
+            <div id="fp-combos"></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== СТОЛ + ТАБЛИЦА РАЗДАЧИ ===== -->
+    <section id="fp-game">
+      <h2 class="fp-h2">Стол и текущая раздача</h2>
+      <p class="fp-sub">Нажмите на игрока за столом, чтобы сделать его дилером: блайнды и очередь хода посчитаются сами. Ставки вписывайте справа — стол обновляется сразу.</p>
+      <div class="fp-main">
+        <div class="fp-panel">
+          <div class="fp-table-box" id="fp-table-box">
+            <div class="fp-felt">
+              <div class="fp-felt-center">
+                <span class="lbl">Банк</span>
+                <span class="pot" id="fp-pot">0</span>
+                <span class="rub" id="fp-pot-rub">0 ₽</span>
+                <span class="stage" id="fp-felt-stage">Префлоп</span>
+              </div>
+            </div>
+            <div id="fp-seats"></div>
+          </div>
+          <div class="fp-order" id="fp-order"></div>
+        </div>
+
+        <div class="fp-panel">
+          <div class="fp-row" style="justify-content:space-between; margin-bottom:10px">
+            <div class="fp-h2" style="font-size:24px;margin:0">Раздача № <span id="fp-hand-no">1</span></div>
+            <div style="font-size:13px;color:#e9d6b3">Вписывайте, сколько игрок <b style="color:var(--gold-hi)">всего поставил</b> на каждом этапе</div>
+          </div>
+          <div class="fp-stages" id="fp-stages" role="tablist" aria-label="Этап раздачи"></div>
+          <div class="fp-scroll">
+            <table class="fp-t" id="fp-hand"></table>
+          </div>
+          <p class="fp-msg" id="fp-msg" role="status"></p>
+          <div class="fp-row fp-actions">
+            <button class="fp-btn primary" id="fp-finish">Вскрытие: отдать банк победителю</button>
+            <button class="fp-btn" id="fp-clear">Очистить раздачу</button>
+            <button class="fp-btn" id="fp-undo">Отменить прошлую раздачу</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ИГРОКИ И БАНК ===== -->
+    <section class="fp-section">
+      <h2 class="fp-h2">Игроки и банк</h2>
+      <p class="fp-sub">Впишите имена. «+ Вход» — игрок докупает стек за <span id="fp-buy-txt">500 ₽</span>. Фишки можно поправить вручную, если что-то посчитали не так.</p>
+      <div class="fp-panel">
+        <div class="fp-scroll"><table class="fp-t" id="fp-players"></table></div>
+        <div class="fp-row" style="margin-top:14px">
+          <button class="fp-btn small" id="fp-add">+ Добавить игрока</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ИТОГИ ВЕЧЕРА ===== -->
+    <section class="fp-section">
+      <h2 class="fp-h2">Итоги вечера</h2>
+      <p class="fp-sub">Обновляются после каждой раздачи: кто сколько вложил, сколько у него сейчас и кто лидирует.</p>
+      <div class="fp-panel">
+        <div class="fp-kpis" id="fp-kpis"></div>
+        <div class="fp-scroll"><table class="fp-t" id="fp-summary"></table></div>
+        <div class="fp-row" style="margin-top:16px">
+          <button class="fp-btn" id="fp-new-night2">Завершить вечер и начать новый</button>
+          <span style="font-size:13px;color:#e2cda5">Итоги сохранятся в архиве ниже, фишки и раздачи обнулятся.</span>
+        </div>
+      </div>
+      <div class="fp-two" style="margin-top:22px">
+        <div class="fp-panel">
+          <div class="fp-h2" style="font-size:22px">История раздач</div>
+          <div class="fp-scroll" style="max-height:420px;overflow-y:auto"><table class="fp-t" id="fp-history" style="min-width:420px"></table></div>
+        </div>
+        <div class="fp-panel">
+          <div class="fp-h2" style="font-size:22px">Расчёт в конце вечера</div>
+          <p class="fp-sub" style="margin-bottom:10px">Сколько рублей выдать каждому из банка: фишки × курс.</p>
+          <div class="fp-scroll"><table class="fp-t" id="fp-payout" style="min-width:360px"></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== АРХИВ ===== -->
+    <section class="fp-section">
+      <h2 class="fp-h2">Архив вечеров</h2>
+      <p class="fp-sub">Каждый вечер сохраняется сюда сам — по дате. Новый вечер его не стирает. Ненужный день можно удалить.</p>
+      <div class="fp-panel">
+        <div class="fp-h2" style="font-size:22px">Общий рейтинг за все вечера</div>
+        <div class="fp-scroll"><table class="fp-t" id="fp-overall" style="min-width:520px"></table></div>
+        <div id="fp-archive"></div>
+      </div>
+    </section>
+
+    <!-- ===== НАСТРОЙКИ ===== -->
+    <section class="fp-section">
+      <div class="fp-panel">
+        <details class="fp-det">
+          <summary>Настройки игры</summary>
+          <div class="fp-settings" style="margin-top:16px">
+            <label>Фишек за вход<input class="fp-in" type="number" min="25" step="25" id="fp-set-chips"></label>
+            <label>Цена входа, ₽<input class="fp-in" type="number" min="10" step="10" id="fp-set-rub"></label>
+            <label>Малый блайнд<input class="fp-in" type="number" min="5" step="5" id="fp-set-sb"></label>
+            <label>Большой блайнд<input class="fp-in" type="number" min="5" step="5" id="fp-set-bb"></label>
+          </div>
+          <div class="fp-row" style="margin-top:18px">
+            <button class="fp-btn small" id="fp-new-night">Начать новый вечер (итоги останутся в архиве)</button>
+          </div>
+          <p style="font-size:13px;color:#e2cda5;margin:12px 0 0">Данные и архив хранятся в этом браузере: если обновить страницу, ничего не пропадёт. На другом телефоне или компьютере таблица будет пустой.</p>
+        </details>
+      </div>
+    </section>
+
+    <p class="fp-foot">♠ ♥ ♦ ♣ · Friendly Poker · играем на интерес и в хорошей компании</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'friendlyPoker.v1';
+  var STAGES = ['Префлоп', 'Флоп', 'Тёрн', 'Ривер'];
+  var app = document.getElementById('fp-app');
+  if (!app) return;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- состояние ---------- */
+  function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
+  function defaultState() {
+    var players = [];
+    for (var i = 1; i <= 6; i++) players.push({ id: uid(), name: 'Игрок ' + i, buyins: 1, chips: 1250, active: true });
+    return {
+      settings: { chips: 1250, rub: 500, sb: 25, bb: 50 },
+      players: players,
+      dealerId: players[0].id,
+      stage: 0,
+      hand: freshHand(),
+      history: [],
+      undo: [],
+      nightId: 'n' + Date.now().toString(36),
+      nightDate: today(),
+      archiveOff: false
+    };
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function freshHand() { return { bets: {}, folded: {}, winners: {}, blindsSet: false }; }
+
+  var S;
+  try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
+  if (!S || !S.players) S = defaultState();
+  if (!S.nightId) { S.nightId = 'n' + Date.now().toString(36); S.nightDate = today(); }
+
+  /* архив вечеров хранится отдельно и не стирается при новом вечере */
+  var AKEY = 'friendlyPoker.archive.v1', A;
+  try { A = JSON.parse(localStorage.getItem(AKEY)) || []; } catch (e) { A = []; }
+  function saveA() { try { localStorage.setItem(AKEY, JSON.stringify(A)); } catch (e) {} }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  /* ---------- вычисления ---------- */
+  function fmt(n) { n = Math.round(n || 0); return (n < 0 ? '−' : '') + Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function rub(ch) { return ch * S.settings.rub / S.settings.chips; }
+  function fmtRub(ch) { var v = rub(ch); return fmt(v) + ' ₽'; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function seated() { return S.players.filter(function (p) { return p.active; }); }
+  function byId(id) { for (var i = 0; i < S.players.length; i++) if (S.players[i].id === id) return S.players[i]; return null; }
+  function bets(id) { var b = S.hand.bets[id]; if (!b) { b = [0, 0, 0, 0]; S.hand.bets[id] = b; } return b; }
+  function total(id) { var b = S.hand.bets[id] || [0, 0, 0, 0]; return b[0] + b[1] + b[2] + b[3]; }
+  function pot() { return seated().reduce(function (a, p) { return a + total(p.id); }, 0); }
+  function stageSum(k) { return seated().reduce(function (a, p) { return a + (S.hand.bets[p.id] ? S.hand.bets[p.id][k] : 0); }, 0); }
+
+  function positions() {
+    var list = seated(), n = list.length, r = { d: null, sb: null, bb: null, pre: [], post: [] };
+    if (n < 2) return r;
+    var di = list.findIndex(function (p) { return p.id === S.dealerId; });
+    if (di < 0) { di = 0; S.dealerId = list[0].id; }
+    var at = function (k) { return list[(di + k) % n]; };
+    r.d = at(0).id;
+    if (n === 2) {
+      r.sb = at(0).id; r.bb = at(1).id;
+      r.pre = [at(0), at(1)]; r.post = [at(1), at(0)];
+    } else {
+      r.sb = at(1).id; r.bb = at(2).id;
+      for (var k = 3; k < 3 + n; k++) r.pre.push(at(k));
+      for (var j = 1; j <= n; j++) r.post.push(at(j));
+    }
+    var alive = function (p) { return !S.hand.folded[p.id]; };
+    r.pre = r.pre.filter(alive); r.post = r.post.filter(alive);
+    return r;
+  }
+  function currentOrder(pos) { return S.stage === 0 ? pos.pre : pos.post; }
+
+  function ensureBlinds() {
+    if (S.hand.blindsSet) return;
+    var pos = positions();
+    if (!pos.sb) return;
+    bets(pos.sb)[0] = Math.min(S.settings.sb, byId(pos.sb).chips);
+    bets(pos.bb)[0] = Math.min(S.settings.bb, byId(pos.bb).chips);
+    S.hand.blindsSet = true;
+  }
+
+  /* ---------- декор ---------- */
+  function deco() {
+    var box = $('fp-deco'); if (!box) return;
+    var seed = 7;
+    var rnd = function () { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    // кластеры страз: [центр X %, центр Y %, сколько камней, радиус разброса px]
+    var clusters = [[7,7,11,95],[93,5,9,80],[97,40,6,60],[3,46,7,70],[6,90,10,90],[92,93,12,100],[60,3,5,55],[50,98,5,50]];
+    var html = '', gi = 0;
+    clusters.forEach(function (c) {
+      for (var k = 0; k < c[2]; k++) {
+        var ang = rnd() * Math.PI * 2, dist = Math.pow(rnd(), 0.8) * c[3];
+        var size = Math.round(18 - (dist / c[3]) * 10 + rnd() * 3);
+        var dx = Math.round(Math.cos(ang) * dist), dy = Math.round(Math.sin(ang) * dist * 0.8);
+        html += '<span class="fp-gem" style="left:calc(' + c[0] + '% + ' + dx + 'px);top:calc(' + c[1] + '% + ' + dy + 'px);width:' + size + 'px;height:' + size + 'px;--d:' + ((gi++ * 0.43) % 5).toFixed(2) + 's"></span>';
+      }
+    });
+    var cards = [[1,4,-18,'black','A','♠'],[13,9,12,'red','K','♥'],[80,6,16,'gold','Q','♦'],[93,12,-10,'black','J','♣'],
+      [0,52,-8,'red','A','♦'],[95,56,10,'black','K','♠'],[1,84,14,'gold','10','♥'],[94,88,-14,'red','A','♣']];
+    cards.forEach(function (c) {
+      html += '<div class="fp-dcard ' + c[3] + '" style="left:' + c[0] + '%;top:' + c[1] + '%;transform:rotate(' + c[2] + 'deg)"><b>' + c[4] + '</b><i>' + c[5] + '</i><s>' + c[4] + '</s></div>';
+    });
+    var chips = [[14,6,58,'#111','#d9b46a'],[18,11,46,'#b0182a','#f7eedb'],[79,13,52,'#d9b46a','#2a0a0e'],[83,5,40,'#111','#c8102e'],
+      [9,66,54,'#b0182a','#d9b46a'],[89,70,48,'#111','#d9b46a'],[12,92,44,'#d9b46a','#111'],[80,94,56,'#b0182a','#f7eedb'],[95,42,42,'#111','#f7eedb']];
+    chips.forEach(function (c) {
+      html += '<span class="fp-dchip" style="left:' + c[0] + '%;top:' + c[1] + '%;width:' + c[2] + 'px;height:' + c[2] + 'px;--c:' + c[3] + ';--r:' + c[4] + '"></span>';
+    });
+    box.innerHTML = html;
+  }
+
+  /* ---------- правила: комбинации ---------- */
+  function combos() {
+    var C = [
+      ['Роял-флеш', 'AH KH QH JH 10H'], ['Стрит-флеш', '9S 8S 7S 6S 5S'], ['Каре', 'QS QH QD QC 7S*'],
+      ['Фулл-хаус', 'JS JH JC 4D 4S'], ['Флеш', 'AD JD 8D 6D 2D'], ['Стрит', '10C 9H 8S 7D 6C'],
+      ['Сет (тройка)', '7S 7H 7C KD* 3S*'], ['Две пары', 'AS AD 9C 9H 4S*'], ['Пара', 'KH KC 9D* 6S* 2C*'],
+      ['Старшая карта', 'AC JD* 8S* 5H* 3C*']];
+    $('fp-combos').innerHTML = C.map(function (c, i) {
+      var cards = c[1].split(' ').map(function (t) {
+        var dim = t.slice(-1) === '*'; if (dim) t = t.slice(0, -1);
+        var s = t.slice(-1), r = t.slice(0, -1), sym = { S: '♠', H: '♥', D: '♦', C: '♣' }[s];
+        return '<span class="' + s + (dim ? ' dim' : '') + '"><span>' + r + '</span><span>' + sym + '</span></span>';
+      }).join('');
+      return '<div class="fp-combo"><em>' + (i + 1) + '</em><strong>' + c[0] + '</strong><div class="fp-mini">' + cards + '</div></div>';
+    }).join('');
+  }
+  function moneyRules() {
+    var st = S.settings, unit = [25, 50, 100, 500];
+    $('fp-r-money').innerHTML =
+      '<li><b>Вход: ' + fmt(st.rub) + ' ₽ = ' + fmt(st.chips) + ' фишек.</b> Повторный вход стоит так же.</li>' +
+      '<li>Фишки: ' + unit.map(function (u) { return u + ' = ' + fmtRub(u); }).join(' · ') + '</li>' +
+      '<li>В конце вечера фишки меняются обратно на рубли по тому же курсу.</li>';
+    $('fp-r-sb').textContent = st.sb; $('fp-r-bb').textContent = st.bb;
+    $('fp-buy-txt').textContent = fmt(st.rub) + ' ₽ (' + fmt(st.chips) + ' фишек)';
+  }
+
+  /* ---------- стол ---------- */
+  function renderTable() {
+    var list = seated(), n = list.length, pos = positions(), order = currentOrder(pos);
+    var first = order.length ? order[0].id : null;
+    var html = '';
+    list.forEach(function (p, i) {
+      var a = (-90 + i * 360 / n) * Math.PI / 180;
+      var x = 50 + 42 * Math.cos(a), y = 50 + 41 * Math.sin(a);
+      var bx = 50 + 25 * Math.cos(a), by = 50 + 22 * Math.sin(a);
+      var left = p.chips - total(p.id);
+      var oi = order.findIndex(function (q) { return q.id === p.id; });
+      var cls = 'fp-seat' + (p.id === first ? ' first' : '') + (S.hand.folded[p.id] ? ' folded' : '');
+      var badges = '';
+      if (p.id === pos.d) badges += '<span class="fp-badge d" title="Дилер">Д</span>';
+      if (p.id === pos.sb) badges += '<span class="fp-badge sb" title="Малый блайнд">МБ</span>';
+      if (p.id === pos.bb) badges += '<span class="fp-badge bb" title="Большой блайнд">ББ</span>';
+      html += '<div class="' + cls + '" style="left:' + x + '%;top:' + y + '%">' +
+        '<button class="fp-seat-btn" data-dealer="' + p.id + '" aria-label="' + esc(p.name) + ': сделать дилером">' +
+        '<span class="nm">' + esc(p.name) + '</span><span class="st">' + fmt(left) + '</span><span class="rb">' + fmtRub(left) + '</span></button>' +
+        (badges ? '<div class="fp-badges">' + badges + '</div>' : '') +
+        (oi >= 0 ? '<span class="ord" title="Очередь хода">' + (oi + 1) + '</span>' : '') + '</div>';
+      if (total(p.id) > 0) html += '<div class="fp-bet" style="left:' + bx + '%;top:' + by + '%"><i></i>' + fmt(total(p.id)) + '</div>';
+    });
+    $('fp-seats').innerHTML = html;
+    $('fp-pot').textContent = fmt(pot());
+    $('fp-pot-rub').textContent = fmtRub(pot());
+    $('fp-felt-stage').textContent = STAGES[S.stage];
+    var o = $('fp-order');
+    if (n < 2) { o.innerHTML = 'Отметьте хотя бы двух игроков «за столом».'; return; }
+    o.innerHTML = '<b>' + STAGES[S.stage] + ':</b> первым ходит <b>' + (order[0] ? esc(order[0].name) : '—') + '</b>' +
+      (S.stage === 0 ? ' (сразу после большого блайнда)' : ' (первый слева от кнопки)') + '.<br>Очередь: ' +
+      order.map(function (p) { return esc(p.name); }).join(' → ');
+  }
+
+  /* ---------- таблица раздачи ---------- */
+  function renderStages() {
+    $('fp-stages').innerHTML = STAGES.map(function (s, i) {
+      return '<button class="fp-stage' + (i === S.stage ? ' on' : '') + '" role="tab" aria-selected="' + (i === S.stage) + '" data-stage="' + i + '">' + (i + 1) + '. ' + s + '</button>';
+    }).join('');
+  }
+  function renderHand() {
+    var list = seated(), pos = positions();
+    var th = '<thead><tr><th>Игрок</th>' + STAGES.map(function (s, i) { return '<th class="n' + (i === S.stage ? ' on' : '') + '">' + s + '</th>'; }).join('') +
+      '<th class="n">Всего</th><th class="n">На руках</th><th class="c">Фолд</th><th class="c">Вскрытие:<br>забирает</th></tr></thead>';
+    var rows = list.map(function (p) {
+      var b = bets(p.id), tag = '';
+      if (p.id === pos.d) tag += '<span class="fp-pos d">Д</span>';
+      if (p.id === pos.sb) tag += '<span class="fp-pos sb">МБ</span>';
+      if (p.id === pos.bb) tag += '<span class="fp-pos bb">ББ</span>';
+      return '<tr data-row="' + p.id + '"><td class="fp-pname">' + esc(p.name) + tag + '</td>' +
+        b.map(function (v, k) {
+          return '<td class="n' + (k === S.stage ? ' on' : '') + '"><input class="fp-in" type="number" inputmode="numeric" min="0" step="25" aria-label="' + esc(p.name) + ', ' + STAGES[k] + '" data-bet="' + p.id + '" data-k="' + k + '" value="' + (v || '') + '" placeholder="0"></td>';
+        }).join('') +
+        '<td class="n" data-tot="' + p.id + '"></td><td class="n" data-left="' + p.id + '"></td>' +
+        '<td class="c"><input type="checkbox" class="fp-chk" aria-label="' + esc(p.name) + ' сбросил карты" data-fold="' + p.id + '"' + (S.hand.folded[p.id] ? ' checked' : '') + '></td>' +
+        '<td class="c"><input type="checkbox" class="fp-chk" aria-label="' + esc(p.name) + ' забирает банк" data-win="' + p.id + '"' + (S.hand.winners[p.id] ? ' checked' : '') + (S.hand.folded[p.id] ? ' disabled' : '') + '></td></tr>';
+    }).join('');
+    var foot = '<tfoot><tr><td>Банк по этапам</td>' + STAGES.map(function (s, k) { return '<td class="n" data-ssum="' + k + '"></td>'; }).join('') +
+      '<td class="n" id="fp-tsum"></td><td></td><td></td><td></td></tr></tfoot>';
+    $('fp-hand').innerHTML = th + '<tbody>' + rows + '</tbody>' + foot;
+    $('fp-hand-no').textContent = S.history.length + 1;
+    updateHandLive();
+  }
+  function updateHandLive() {
+    var list = seated(), errs = 0;
+    list.forEach(function (p) {
+      var t = total(p.id), left = p.chips - t;
+      var tc = app.querySelector('[data-tot="' + p.id + '"]'); if (tc) tc.textContent = fmt(t);
+      var lc = app.querySelector('[data-left="' + p.id + '"]');
+      if (lc) lc.innerHTML = '<span class="fp-left' + (left < 0 ? ' neg' : '') + '">' + fmt(left) + '</span><br><small style="opacity:.8">' + fmtRub(left) + '</small>';
+      var row = app.querySelector('tr[data-row="' + p.id + '"]');
+      if (row) { row.classList.toggle('folded', !!S.hand.folded[p.id]); row.classList.toggle('win', !!S.hand.winners[p.id]); }
+      app.querySelectorAll('[data-bet="' + p.id + '"]').forEach(function (inp) { inp.classList.toggle('err', left < 0); });
+      if (left < 0) errs++;
+    });
+    for (var k = 0; k < 4; k++) { var c = app.querySelector('[data-ssum="' + k + '"]'); if (c) c.textContent = fmt(stageSum(k)); }
+    var ts = $('fp-tsum'); if (ts) ts.textContent = fmt(pot());
+    if (errs) msg('У кого-то ставки больше, чем фишек на руках — проверьте красные ячейки.', true);
+    else if (!$('fp-msg').dataset.keep) msg('');
+    renderTable();
+  }
+  function msg(t, err) { var m = $('fp-msg'); m.textContent = t; m.className = 'fp-msg' + (err ? ' err' : ''); }
+
+  /* ---------- завершение раздачи ---------- */
+  function snapshot() { return JSON.stringify({ players: S.players, dealerId: S.dealerId, hand: S.hand, history: S.history, stage: S.stage }); }
+  function nextDealer() {
+    var list = seated(); if (list.length < 2) return;
+    var i = list.findIndex(function (p) { return p.id === S.dealerId; });
+    S.dealerId = list[(i + 1) % list.length].id;
+  }
+  function finishHand() {
+    var list = seated(), P = pot();
+    var winners = list.filter(function (p) { return S.hand.winners[p.id] && !S.hand.folded[p.id]; });
+    var alive = list.filter(function (p) { return !S.hand.folded[p.id]; });
+    if (!winners.length && alive.length === 1) winners = alive;
+    if (P <= 0) { msg('В банке пусто — сначала впишите ставки.', true); return; }
+    if (!winners.length) { msg('Отметьте в последней колонке, кто забирает банк (при ничьей — нескольких).', true); return; }
+    if (list.some(function (p) { return p.chips - total(p.id) < 0; })) { msg('Ставки больше, чем фишек у игрока. Исправьте красные ячейки.', true); return; }
+
+    S.undo.push(snapshot()); if (S.undo.length > 30) S.undo.shift();
+    var pos = positions();
+    var unit = 25, share = Math.floor(P / winners.length / unit) * unit, rest = P - share * winners.length;
+    // остаток — первому победителю слева от кнопки
+    var orderIds = pos.post.map(function (p) { return p.id; });
+    winners.sort(function (a, b) { return orderIds.indexOf(a.id) - orderIds.indexOf(b.id); });
+    var deltas = {};
+    list.forEach(function (p) { deltas[p.id] = -total(p.id); });
+    winners.forEach(function (w, i) { deltas[w.id] += share + (i === 0 ? rest : 0); });
+    list.forEach(function (p) { p.chips += deltas[p.id]; });
+    S.history.push({
+      n: S.history.length + 1, pot: P, dealer: byId(S.dealerId) ? byId(S.dealerId).name : '',
+      winners: winners.map(function (w) { return w.id; }), winnerNames: winners.map(function (w) { return w.name; }),
+      deltas: deltas, played: list.filter(function (p) { return total(p.id) > 0 || winners.indexOf(p) >= 0; }).map(function (p) { return p.id; })
+    });
+    nextDealer();
+    S.hand = freshHand(); S.stage = 0;
+    ensureBlinds(); save();
+    renderAll();
+    msg('Банк ' + fmt(P) + ' (' + fmtRub(P) + ') забирает ' + winners.map(function (w) { return w.name; }).join(' и ') + '. Кнопка переехала дальше, блайнды уже поставлены.');
+  }
+  function undoHand() {
+    if (!S.undo.length) { msg('Отменять пока нечего.', true); return; }
+    var s = JSON.parse(S.undo.pop());
+    S.players = s.players; S.dealerId = s.dealerId; S.hand = s.hand; S.history = s.history; S.stage = s.stage;
+    save(); renderAll(); msg('Прошлая раздача отменена — фишки вернулись как были.');
+  }
+
+  /* ---------- игроки ---------- */
+  function renderPlayers() {
+    var th = '<thead><tr><th>Имя</th><th class="c">За столом</th><th class="c">Дилер</th><th class="n">Входов</th><th class="n">Фишки</th><th class="n">В рублях</th><th></th><th></th></tr></thead>';
+    var rows = S.players.map(function (p) {
+      return '<tr><td style="min-width:150px"><input class="fp-in wide" type="text" maxlength="18" data-name="' + p.id + '" value="' + esc(p.name) + '" aria-label="Имя игрока"></td>' +
+        '<td class="c"><input type="checkbox" class="fp-chk" data-active="' + p.id + '"' + (p.active ? ' checked' : '') + ' aria-label="' + esc(p.name) + ' за столом"></td>' +
+        '<td class="c"><input type="radio" name="fp-dealer" class="fp-chk" data-dradio="' + p.id + '"' + (p.id === S.dealerId ? ' checked' : '') + (p.active ? '' : ' disabled') + ' aria-label="' + esc(p.name) + ' дилер"></td>' +
+        '<td class="n">' + p.buyins + '</td>' +
+        '<td class="n"><input class="fp-in" type="number" step="25" min="0" data-chips="' + p.id + '" value="' + p.chips + '" aria-label="Фишки ' + esc(p.name) + '"></td>' +
+        '<td class="n" data-prub="' + p.id + '">' + fmtRub(p.chips) + '</td>' +
+        '<td><button class="fp-btn small" data-rebuy="' + p.id + '">+ Вход</button></td>' +
+        '<td><button class="fp-btn small" data-del="' + p.id + '" aria-label="Удалить ' + esc(p.name) + '">✕</button></td></tr>';
+    }).join('');
+    $('fp-players').innerHTML = th + '<tbody>' + rows + '</tbody>';
+  }
+
+  /* ---------- итоги ---------- */
+  function stats() {
+    var st = {};
+    S.players.forEach(function (p) { st[p.id] = { won: 0, played: 0, best: 0, net: 0 }; });
+    S.history.forEach(function (h) {
+      (h.played || []).forEach(function (id) { if (st[id]) st[id].played++; });
+      h.winners.forEach(function (id) { if (st[id]) { st[id].won++; st[id].best = Math.max(st[id].best, h.pot); } });
+    });
+    return st;
+  }
+  function renderSummary() {
+    var st = stats(), C = S.settings.chips;
+    var ranked = S.players.slice().sort(function (a, b) { return (b.chips - b.buyins * C) - (a.chips - a.buyins * C); });
+    var leader = ranked[0];
+    var th = '<thead><tr><th>#</th><th>Игрок</th><th class="n">Входов</th><th class="n">Вложено</th><th class="n">Фишки сейчас</th><th class="n">Итог, фишки</th><th class="n">Итог, ₽</th><th class="n">Выиграно раздач</th><th class="n">Крупнейший банк</th></tr></thead>';
+    var rows = ranked.map(function (p, i) {
+      var inv = p.buyins * C, net = p.chips - inv, s = st[p.id];
+      var cls = net > 0 ? 'fp-plus' : (net < 0 ? 'fp-minus' : '');
+      var sign = net > 0 ? '+' : '';
+      return '<tr class="' + (i === 0 && net > 0 ? 'fp-leader' : '') + '"><td>' + (i + 1) + '</td><td class="fp-pname">' + (i === 0 && net > 0 ? '<span class="fp-crown">♛</span>' : '') + esc(p.name) + '</td>' +
+        '<td class="n">' + p.buyins + '</td><td class="n">' + fmtRub(inv) + '</td><td class="n">' + fmt(p.chips) + '</td>' +
+        '<td class="n ' + cls + '">' + sign + fmt(net) + '</td><td class="n ' + cls + '">' + sign + fmtRub(net) + '</td>' +
+        '<td class="n">' + s.won + ' из ' + s.played + '</td><td class="n">' + (s.best ? fmt(s.best) : '—') + '</td></tr>';
+    }).join('');
+    $('fp-summary').innerHTML = th + '<tbody>' + rows + '</tbody>';
+
+    var totalBuy = S.players.reduce(function (a, p) { return a + p.buyins; }, 0);
+    var money = totalBuy * S.settings.rub;
+    var chipsAll = S.players.reduce(function (a, p) { return a + p.chips; }, 0);
+    var ok = Math.abs(chipsAll - totalBuy * C) < 1;
+    var biggest = S.history.reduce(function (a, h) { return h.pot > a.pot ? h : a; }, { pot: 0 });
+    $('fp-kpis').innerHTML =
+      kpi('Лидер вечера', leader && (leader.chips - leader.buyins * C) > 0 ? '♛ ' + esc(leader.name) : '—', leader ? '+' + fmtRub(Math.max(0, leader.chips - leader.buyins * C)) : '') +
+      kpi('Сыграно раздач', S.history.length, '') +
+      kpi('Деньги в банке', fmt(money) + ' ₽', totalBuy + ' вход(ов)') +
+      kpi('Фишек на руках', fmt(chipsAll), ok ? '<span class="fp-ok">✓ сходится с банком</span>' : '<span class="fp-bad">✗ не сходится: ' + fmt(chipsAll - totalBuy * C) + '</span>') +
+      kpi('Крупнейший банк', biggest.pot ? fmt(biggest.pot) : '—', biggest.pot ? (biggest.winnerNames || []).map(esc).join(', ') + ', № ' + biggest.n : '');
+  }
+  function kpi(l, v, s) { return '<div class="fp-kpi"><span>' + l + '</span><strong>' + v + '</strong><small>' + s + '</small></div>'; }
+
+  function renderHistory() {
+    if (!S.history.length) { $('fp-history').innerHTML = '<tbody><tr><td class="fp-empty">Пока ни одной раздачи. После вскрытия она появится здесь.</td></tr></tbody>'; return; }
+    var th = '<thead><tr><th>№</th><th>Дилер</th><th>Забрал банк</th><th class="n">Банк</th><th class="n">₽</th></tr></thead>';
+    var rows = S.history.slice().reverse().map(function (h) {
+      return '<tr><td>' + h.n + '</td><td>' + esc(h.dealer) + '</td><td class="fp-pname">' + h.winners.map(function (id, i) { var p = byId(id); return esc(p ? p.name : h.winnerNames[i]); }).join(', ') + '</td><td class="n">' + fmt(h.pot) + '</td><td class="n">' + fmtRub(h.pot) + '</td></tr>';
+    }).join('');
+    $('fp-history').innerHTML = th + '<tbody>' + rows + '</tbody>';
+  }
+  function renderPayout() {
+    var C = S.settings.chips;
+    var th = '<thead><tr><th>Игрок</th><th class="n">Внёс</th><th class="n">Выдать</th><th class="n">Разница</th></tr></thead>';
+    var sumIn = 0, sumOut = 0;
+    var rows = S.players.map(function (p) {
+      var inR = p.buyins * S.settings.rub, outR = rub(p.chips), d = outR - inR;
+      sumIn += inR; sumOut += outR;
+      return '<tr><td class="fp-pname">' + esc(p.name) + '</td><td class="n">' + fmt(inR) + ' ₽</td><td class="n"><b style="color:var(--gold-hi)">' + fmt(outR) + ' ₽</b></td><td class="n ' + (d > 0 ? 'fp-plus' : d < 0 ? 'fp-minus' : '') + '">' + (d > 0 ? '+' : '') + fmt(d) + ' ₽</td></tr>';
+    }).join('');
+    $('fp-payout').innerHTML = th + '<tbody>' + rows + '</tbody><tfoot><tr><td>Итого</td><td class="n">' + fmt(sumIn) + ' ₽</td><td class="n">' + fmt(sumOut) + ' ₽</td><td></td></tr></tfoot>';
+  }
+
+  /* ---------- архив ---------- */
+  function nightEntry() {
+    var st = stats(), C = S.settings.chips, k = S.settings.rub / C;
+    var biggest = S.history.reduce(function (a, h) { return h.pot > a.pot ? h : a; }, { pot: 0 });
+    return {
+      id: S.nightId, date: S.nightDate, hands: S.history.length,
+      money: S.players.reduce(function (a, p) { return a + p.buyins; }, 0) * S.settings.rub,
+      biggest: biggest.pot ? { rub: Math.round(biggest.pot * k), names: (biggest.winnerNames || []).join(', ') } : null,
+      players: S.players.map(function (p) {
+        var inv = p.buyins * S.settings.rub, out = Math.round(p.chips * k);
+        return { name: p.name, buyins: p.buyins, inv: inv, out: out, net: out - inv, won: st[p.id].won, played: st[p.id].played };
+      })
+    };
+  }
+  function syncArchive() {
+    if (S.archiveOff) { renderArchive(); return; }
+    var i = A.findIndex(function (n) { return n.id === S.nightId; });
+    if (!S.history.length) { if (i >= 0) A.splice(i, 1); }
+    else if (i >= 0) A[i] = nightEntry(); else A.push(nightEntry());
+    saveA(); renderArchive();
+  }
+  function prettyDate(iso) {
+    var d = new Date(iso + 'T12:00:00');
+    try { return d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso; }
+  }
+  function signRub(v) { return '<span class="' + (v > 0 ? 'fp-plus' : v < 0 ? 'fp-minus' : '') + '">' + (v > 0 ? '+' : '') + fmt(v) + ' ₽</span>'; }
+  function renderArchive() {
+    var box = $('fp-archive'), ov = $('fp-overall');
+    if (!box) return;
+    if (!A.length) {
+      box.innerHTML = '<p class="fp-empty">Архив пока пуст. Вечер попадёт сюда автоматически после первой сыгранной раздачи.</p>';
+      ov.innerHTML = '<tbody><tr><td class="fp-empty">Здесь появится общий рейтинг за все вечера.</td></tr></tbody>';
+      return;
+    }
+    var agg = {};
+    A.forEach(function (n) {
+      n.players.forEach(function (p) {
+        if (!p.played && p.buyins <= 1 && p.net === 0) return;
+        var a = agg[p.name] || (agg[p.name] = { name: p.name, nights: 0, net: 0, won: 0, played: 0, best: -Infinity });
+        a.nights++; a.net += p.net; a.won += p.won; a.played += p.played; a.best = Math.max(a.best, p.net);
+      });
+    });
+    var all = Object.keys(agg).map(function (k) { return agg[k]; }).sort(function (a, b) { return b.net - a.net; });
+    ov.innerHTML = '<thead><tr><th>#</th><th>Игрок</th><th class="n">Вечеров</th><th class="n">Итог за всё время</th><th class="n">Лучший вечер</th><th class="n">Выиграно раздач</th></tr></thead><tbody>' +
+      all.map(function (a, i) {
+        return '<tr class="' + (i === 0 && a.net > 0 ? 'fp-leader' : '') + '"><td>' + (i + 1) + '</td><td class="fp-pname">' + (i === 0 && a.net > 0 ? '<span class="fp-crown">♛</span>' : '') + esc(a.name) + '</td><td class="n">' + a.nights + '</td><td class="n">' + signRub(a.net) + '</td><td class="n">' + signRub(a.best) + '</td><td class="n">' + a.won + ' из ' + a.played + '</td></tr>';
+      }).join('') + '</tbody>';
+    var days = {};
+    A.forEach(function (n) { (days[n.date] = days[n.date] || []).push(n); });
+    box.innerHTML = Object.keys(days).sort().reverse().map(function (date) {
+      var nights = days[date], hands = 0, money = 0;
+      nights.forEach(function (n) { hands += n.hands; money += n.money; });
+      return '<div class="fp-day"><div class="fp-day-head"><div><div class="fp-day-title">' + prettyDate(date) +
+        (nights.some(function (n) { return n.id === S.nightId && !S.archiveOff; }) ? '<span class="fp-live">идёт сейчас</span>' : '') + '</div>' +
+        '<div class="fp-day-meta">' + hands + ' раздач · в банке было ' + fmt(money) + ' ₽</div></div>' +
+        '<button class="fp-btn small" data-delday="' + date + '">Удалить день</button></div>' +
+        nights.map(function (n, i) {
+          var rows = n.players.filter(function (p) { return p.played || p.buyins > 1 || p.net !== 0; }).sort(function (a, b) { return b.net - a.net; });
+          if (!rows.length) rows = n.players;
+          return (nights.length > 1 ? '<div class="fp-night-sub">Вечер ' + (i + 1) + '</div>' : '') +
+            (n.biggest ? '<div class="fp-day-meta" style="margin-bottom:6px">Крупнейший банк: ' + fmt(n.biggest.rub) + ' ₽ — ' + esc(n.biggest.names) + '</div>' : '') +
+            '<div class="fp-scroll"><table class="fp-t" style="min-width:520px"><thead><tr><th>Игрок</th><th class="n">Входов</th><th class="n">Внёс</th><th class="n">Ушёл с</th><th class="n">Итог</th><th class="n">Раздач выиграно</th></tr></thead><tbody>' +
+            rows.map(function (p, j) {
+              return '<tr class="' + (j === 0 && p.net > 0 ? 'fp-leader' : '') + '"><td class="fp-pname">' + (j === 0 && p.net > 0 ? '<span class="fp-crown">♛</span>' : '') + esc(p.name) + '</td><td class="n">' + p.buyins + '</td><td class="n">' + fmt(p.inv) + ' ₽</td><td class="n">' + fmt(p.out) + ' ₽</td><td class="n">' + signRub(p.net) + '</td><td class="n">' + p.won + ' из ' + p.played + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+
+  function renderSettings() {
+    $('fp-set-chips').value = S.settings.chips; $('fp-set-rub').value = S.settings.rub;
+    $('fp-set-sb').value = S.settings.sb; $('fp-set-bb').value = S.settings.bb;
+  }
+
+  function renderAll() {
+    ensureBlinds();
+    moneyRules(); renderStages(); renderHand(); renderPlayers(); renderSummary(); renderHistory(); renderPayout(); renderSettings(); syncArchive();
+    $('fp-undo').disabled = !S.undo.length;
+    save();
+  }
+
+  /* ---------- подтверждение двойным нажатием (стандартные окна в Тильде могут не работать) ---------- */
+  function armed(btn, text) {
+    if (btn.dataset.armed === '1') { clearTimeout(btn._fpT); btn.dataset.armed = ''; btn.innerHTML = btn.dataset.orig; btn.classList.remove('armed'); return true; }
+    btn.dataset.armed = '1'; btn.dataset.orig = btn.innerHTML; btn.innerHTML = text || 'Точно? Нажмите ещё раз'; btn.classList.add('armed');
+    btn._fpT = setTimeout(function () { btn.dataset.armed = ''; btn.innerHTML = btn.dataset.orig; btn.classList.remove('armed'); }, 3500);
+    return false;
+  }
+
+  /* ---------- события ---------- */
+  $('fp-rules-btn').addEventListener('click', function () {
+    var r = $('fp-rules'), open = r.classList.toggle('open');
+    this.setAttribute('aria-expanded', open); this.textContent = open ? 'Скрыть правила' : 'Правила игры';
+  });
+
+  app.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-dealer],[data-stage],[data-rebuy],[data-del],[data-delday]');
+    if (!t) return;
+    if (t.dataset.dealer) {
+      S.dealerId = t.dataset.dealer; resetBlinds(); renderAll();
+    } else if (t.dataset.stage) {
+      S.stage = +t.dataset.stage; renderStages(); renderHand();
+    } else if (t.dataset.rebuy) {
+      var p = byId(t.dataset.rebuy); p.buyins++; p.chips += S.settings.chips;
+      renderAll(); msg(p.name + ' докупился: +' + fmt(S.settings.chips) + ' фишек, в банк +' + fmt(S.settings.rub) + ' ₽.');
+    } else if (t.dataset.del) {
+      var q = byId(t.dataset.del);
+      if (S.players.length <= 2) { msg('За столом должно остаться хотя бы двое.', true); return; }
+      var playedTonight = S.history.some(function (h) { return (h.played || []).indexOf(q.id) >= 0 || h.winners.indexOf(q.id) >= 0; });
+      if (playedTonight || q.buyins > 1) { msg('«' + q.name + '» уже играл сегодня. Чтобы не потерять его итоги, просто снимите галочку «За столом».', true); return; }
+      if (!armed(t, 'Удалить?')) return;
+      S.players = S.players.filter(function (x) { return x.id !== q.id; });
+      delete S.hand.bets[q.id];
+      if (S.dealerId === q.id) S.dealerId = seated()[0] ? seated()[0].id : S.players[0].id;
+      resetBlinds(); renderAll(); msg('Игрок «' + q.name + '» удалён.');
+    } else if (t.dataset.delday) {
+      if (!armed(t, 'Точно удалить? Нажмите ещё раз')) return;
+      var day = t.dataset.delday;
+      A = A.filter(function (n) { return n.date !== day; });
+      if (S.nightDate === day && S.history.length) S.archiveOff = true;
+      saveA(); renderArchive();
+    }
+  });
+
+  function resetBlinds() {
+    S.players.forEach(function (p) { if (S.hand.bets[p.id]) S.hand.bets[p.id][0] = 0; });
+    S.hand.blindsSet = false; ensureBlinds();
+  }
+
+  app.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.dataset.bet) {
+      var v = Math.max(0, parseInt(t.value, 10) || 0);
+      bets(t.dataset.bet)[+t.dataset.k] = v; save(); updateHandLive(); renderSummaryLight();
+    } else if (t.dataset.name) {
+      var p = byId(t.dataset.name); p.name = t.value || 'Без имени'; save(); renderTable();
+    } else if (t.dataset.chips) {
+      var q = byId(t.dataset.chips); q.chips = Math.max(0, parseInt(t.value, 10) || 0);
+      var c = app.querySelector('[data-prub="' + q.id + '"]'); if (c) c.textContent = fmtRub(q.chips);
+      save(); updateHandLive(); renderSummaryLight();
+    }
+  });
+  function renderSummaryLight() { renderSummary(); renderPayout(); syncArchive(); }
+
+  app.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset.fold) {
+      S.hand.folded[t.dataset.fold] = t.checked; if (t.checked) delete S.hand.winners[t.dataset.fold];
+      save(); renderHand();
+    } else if (t.dataset.win) {
+      S.hand.winners[t.dataset.win] = t.checked; save(); updateHandLive();
+    } else if (t.dataset.active) {
+      var p = byId(t.dataset.active); p.active = t.checked;
+      if (seated().length && !byId(S.dealerId).active) S.dealerId = seated()[0].id;
+      resetBlinds(); renderAll();
+    } else if (t.dataset.dradio) {
+      S.dealerId = t.dataset.dradio; resetBlinds(); renderAll();
+    } else if (t.dataset.name) {
+      renderAll();
+    } else if (/^fp-set-/.test(t.id)) {
+      var st = S.settings;
+      st.chips = Math.max(25, +$('fp-set-chips').value || 1250); st.rub = Math.max(1, +$('fp-set-rub').value || 500);
+      st.sb = Math.max(1, +$('fp-set-sb').value || 25); st.bb = Math.max(1, +$('fp-set-bb').value || 50);
+      resetBlinds(); renderAll();
+    }
+  });
+
+  $('fp-finish').addEventListener('click', finishHand);
+  $('fp-undo').addEventListener('click', undoHand);
+  $('fp-clear').addEventListener('click', function () {
+    if (!armed(this)) return;
+    S.hand = freshHand(); S.stage = 0; ensureBlinds(); renderAll(); msg('Раздача очищена, блайнды поставлены заново.');
+  });
+  $('fp-add').addEventListener('click', function () {
+    if (S.players.length >= 9) { msg('За одним столом максимум 9 игроков.', true); return; }
+    var num = S.players.length + 1;
+    while (S.players.some(function (x) { return x.name === 'Игрок ' + num; })) num++;
+    S.players.push({ id: uid(), name: 'Игрок ' + num, buyins: 1, chips: S.settings.chips, active: true });
+    resetBlinds(); renderAll();
+  });
+  function newNight() {
+    syncArchive();
+    var names = S.players.map(function (p) { return p.name; }), set = S.settings;
+    S = defaultState(); S.settings = set;
+    S.players.forEach(function (p, i) { if (names[i]) p.name = names[i]; p.chips = set.chips; });
+    for (var i = S.players.length; i < names.length; i++) S.players.push({ id: uid(), name: names[i], buyins: 1, chips: set.chips, active: true });
+    S.dealerId = S.players[0].id; renderAll(); msg('Новый вечер начат, прошлый сохранён в архиве. Удачи за столом!');
+  }
+  $('fp-new-night').addEventListener('click', function () { if (armed(this)) newNight(); });
+  $('fp-new-night2').addEventListener('click', function () { if (armed(this, 'Точно? Нажмите ещё раз — итоги уйдут в архив')) { newNight(); location.hash = 'fp-game'; } });
+
+  /* лампочки по периметру вывески */
+  function bulbs() {
+    var sign = $('fp-sign'), box = $('fp-bulbs'); if (!sign || !box) return;
+    var w = sign.offsetWidth, h = sign.offsetHeight, inset = w < 500 ? 9 : 13, step = w < 500 ? 22 : 30;
+    var W = w - inset * 2, H = h - inset * 2, html = '', i = 0;
+    var nx = Math.max(2, Math.round(W / step)), ny = Math.max(2, Math.round(H / step));
+    function put(x, y) { html += '<span class="fp-bulb b' + (i++ % 3) + '" style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px"></span>'; }
+    for (var a = 0; a < nx; a++) put(inset + W * a / nx, inset);
+    for (var b = 0; b < ny; b++) put(inset + W, inset + H * b / ny);
+    for (var c = 0; c < nx; c++) put(inset + W - W * c / nx, inset + H);
+    for (var d = 0; d < ny; d++) put(inset, inset + H - H * d / ny);
+    box.innerHTML = html;
+  }
+  var bt; window.addEventListener('resize', function () { clearTimeout(bt); bt = setTimeout(bulbs, 150); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(bulbs);
+
+  deco(); combos(); renderAll(); bulbs();
+})();
+</script>
+
+
+</body>
+</html>
